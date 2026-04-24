@@ -14,10 +14,26 @@ CLI tool to convert Miro boards to Excalidraw (`.excalidraw`) files via the Miro
 - Skip-existing for safe batch re-runs
 - Deterministic output (same board always produces the same element IDs)
 
-## Requirements
+## Installation
 
-- Python 3.10+
-- A [Miro API access token](https://miro.com/app/settings/user-profile/apps)
+No pip install needed — it's a single Python file with zero dependencies.
+
+```bash
+# Clone the repo
+git clone https://github.com/dantes4ur/miro-to-excalidraw.git
+cd miro-to-excalidraw
+
+# Run directly with Python 3.10+
+python3 convert.py --help
+
+# Or run with uv (no Python install required)
+uv run convert.py --help
+```
+
+### Requirements
+
+- Python 3.10+ (or [uv](https://docs.astral.sh/uv/) which manages Python for you)
+- A [Miro API access token](https://miro.com/app/settings/user-profile/apps) (see setup below)
 - No external dependencies (stdlib only)
 
 ## Miro API Setup
@@ -72,39 +88,39 @@ sequenceDiagram
     participant API as Miro API v2
     participant CDN as Miro Image CDN
 
-    Note over CLI: User runs: convert.py --board <ID>
+    Note over CLI: User runs convert.py --board ID
 
     rect rgb(240, 248, 255)
         Note over CLI,API: 1. Fetch Board Items (paginated)
         loop Until no more pages
-            CLI->>API: GET /boards/{id}/items?limit=50&cursor=...
-            API-->>CLI: { data: [...items], links: { next } }
+            CLI->>API: GET /boards/ID/items?limit=50
+            API-->>CLI: items array + next cursor
         end
     end
 
     rect rgb(240, 248, 255)
         Note over CLI,API: 2. Fetch Connectors (paginated)
         loop Until no more pages
-            CLI->>API: GET /boards/{id}/connectors?limit=50&cursor=...
-            API-->>CLI: { data: [...connectors], links: { next } }
+            CLI->>API: GET /boards/ID/connectors?limit=50
+            API-->>CLI: connectors array + next cursor
         end
     end
 
     rect rgb(255, 245, 238)
         Note over CLI,CDN: 3. Download Images (per image item)
         loop For each image/embed with imageUrl
-            CLI->>API: GET /boards/{id}/resources/images/{resId}?format=original
-            API-->>CLI: { url: "signed CDN URL" }
+            CLI->>API: GET /boards/ID/resources/images/RES?format=original
+            API-->>CLI: signed CDN URL
             CLI->>CDN: GET signed URL
             CDN-->>CLI: image bytes (PNG/JPEG/SVG)
         end
     end
 
     rect rgb(240, 255, 240)
-        Note over CLI: 4. Convert & Write
+        Note over CLI: 4. Convert and Write
         CLI->>CLI: Resolve parent-relative positions
-        CLI->>CLI: Convert items → Excalidraw elements
-        CLI->>CLI: Wire connector → arrow bindings
+        CLI->>CLI: Convert items to Excalidraw elements
+        CLI->>CLI: Wire connector arrow bindings
         CLI->>CLI: Embed images as base64 in files map
         CLI->>CLI: Write .excalidraw JSON
     end
@@ -145,15 +161,15 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A[Item with imageUrl] --> B[Replace format=preview<br/>with format=original]
-    B --> C[GET /resources/images/{id}<br/>→ signed CDN URL]
-    C --> D[GET signed URL<br/>→ raw bytes]
-    D --> E{Read PNG/JPEG header}
-    E --> F[Get pixel dimensions]
-    F --> G{Pixels < display size?}
-    G -->|Yes| H[Cap to pixel dimensions]
-    G -->|No| I[Keep scaled size]
-    H --> J[Base64 encode → files map]
+    A["Item with imageUrl"] --> B["Replace preview with original"]
+    B --> C["GET /resources/images/id"]
+    C --> D["Download from signed CDN URL"]
+    D --> E{"Read PNG/JPEG header"}
+    E --> F["Get pixel dimensions"]
+    F --> G{"Pixels smaller than display?"}
+    G -->|Yes| H["Cap to pixel dimensions"]
+    G -->|No| I["Keep scaled size"]
+    H --> J["Base64 encode into files map"]
     I --> J
 ```
 
