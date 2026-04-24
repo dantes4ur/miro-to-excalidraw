@@ -139,6 +139,24 @@ def get_image_dimensions(data: bytes) -> tuple[int, int] | None:
     return None
 
 
+def fit_font_size(text: str, container_w: float, container_h: float,
+                   hint_size: float = 16) -> float:
+    """Calculate a font size that fits text inside a container."""
+    if not text or container_w <= 0 or container_h <= 0:
+        return max(8, hint_size)
+    lines = text.split("\n")
+    max_line_len = max((len(line) for line in lines), default=1)
+    nlines = len(lines)
+    # Estimate: each char is ~0.6 * fontSize wide
+    # Fit horizontally: fontSize <= container_w / (max_line_len * 0.6)
+    fit_w = container_w / max(1, max_line_len * 0.55) if max_line_len > 0 else hint_size
+    # Fit vertically: fontSize * 1.4 * nlines <= container_h * 0.85
+    fit_h = (container_h * 0.85) / max(1, nlines * 1.4)
+    # Use the smaller of horizontal/vertical fit, capped by hint
+    size = min(fit_w, fit_h, hint_size)
+    return max(6, min(size, 48))
+
+
 def estimate_text_height(text: str, font_size: float, width: float) -> float:
     char_width = font_size * 0.6
     total_lines = 0
@@ -283,6 +301,8 @@ def _text_element(eid: str, x: float, y: float, w: float, h: float,
                   text_align: str = "center", v_align: str = "middle",
                   container_id: str | None = None):
     el = _base_element(eid, "text", x, y, w, h, strokeColor=color, index="a1")
+    # autoResize=False for bound text so text wraps inside the container
+    # autoResize=True for standalone text so it sizes naturally
     el.update({
         "text": text,
         "fontSize": font_size,
@@ -291,7 +311,7 @@ def _text_element(eid: str, x: float, y: float, w: float, h: float,
         "verticalAlign": v_align,
         "containerId": container_id,
         "originalText": text,
-        "autoResize": True,
+        "autoResize": container_id is None,
         "lineHeight": 1.25,
     })
     return el
@@ -332,7 +352,8 @@ def convert_shape(item: dict, scale: float, id_map: dict) -> list:
         return [rect]
 
     text_id = stable_id(item["id"] + "_text")
-    font_size = max(12, min(int(style.get("fontSize", "28")), 72) * scale)
+    hint = min(int(style.get("fontSize", "28")), 72) * scale
+    font_size = fit_font_size(content, w - 20, h - 10, hint)
     text_color = style.get("color", "#1a1a1a")
     nlines = max(1, len(content.split("\n")))
     th = font_size * 1.4 * nlines
@@ -383,8 +404,8 @@ def convert_sticky_note(item: dict, scale: float, id_map: dict) -> list:
         return [rect]
 
     text_id = stable_id(item["id"] + "_text")
+    font_size = fit_font_size(content, w - 20, h - 10, 16)
     nlines = max(1, len(content.split("\n")))
-    font_size = max(12, min(16, h / (nlines + 1)))
     th = font_size * 1.25 * nlines
 
     text_el = _text_element(text_id, x + 10, y + h / 2 - th / 2, w - 20, th,
@@ -578,7 +599,7 @@ def convert_card(item: dict, scale: float, id_map: dict) -> list:
         return [rect]
 
     text_id = stable_id(item["id"] + "_text")
-    font_size = max(12, min(14, h * 0.08))
+    font_size = fit_font_size(content, w - 16, h - 10, 14)
     nlines = max(1, len(content.split("\n")))
     th = font_size * 1.25 * nlines
 
