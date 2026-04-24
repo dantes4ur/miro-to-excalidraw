@@ -1,0 +1,22 @@
+# Secrets
+.env
+
+# Generated output
+output/
+*.excalidraw
+
+# Miro RTB files and extractions
+*.rtb
+rtb_extracted/
+
+# AI tooling
+.omc/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
